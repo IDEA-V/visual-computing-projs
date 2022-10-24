@@ -157,8 +157,7 @@ if (NOT datraw_POPULATED)
   add_subdirectory(${datraw_SOURCE_DIR} ${datraw_BINARY_DIR} EXCLUDE_FROM_ALL)
   get_target_property(include_dirs datraw INTERFACE_INCLUDE_DIRECTORIES)
   set_target_properties(datraw PROPERTIES
-    INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${include_dirs}"
-    FOLDER libs)
+    INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${include_dirs}")
 endif ()
 
 # boost stacktrace
