@@ -58,7 +58,12 @@ namespace OGL4Core2::Plugins::PCVC::HelloCube {
 
         // Other variables
         // --------------------------------------------------------------------------------
-        //  TODO: Define necessary variables.
+        GLint vertexShader;
+        GLint fragmentShader;
+        double lastMouseX;
+        double lastMouseY;
+        int windowWidth;
+        int windowHeight;
         // --------------------------------------------------------------------------------
 
         // GUI parameters
