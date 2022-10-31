@@ -217,10 +217,10 @@ void HelloCube::mouseMove(double xpos, double ypos) {
         int moveX = 0;
         int moveY = 0;
 
-        if (xpos - lastMouseX == -1) moveX = -1;
-        if (xpos - lastMouseX == 1) moveX = 1;
-        if (ypos - lastMouseY == -1) moveY = -1;
-        if (ypos - lastMouseY == 1) moveY = 1;
+        if (xpos - lastMouseX < 0) moveX = -1;
+        if (xpos - lastMouseX > 0) moveX = 1;
+        if (ypos - lastMouseY < 0) moveY = -1;
+        if (ypos - lastMouseY > 0) moveY = 1;
 
         // std::cout << moveX << ',' << moveY << std::endl;
 
