@@ -177,6 +177,12 @@ void HelloCube::render() {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 
+    //reset mouse position marker to zero when no mouse button is pressed
+    if (!this->core_.isMouseButtonPressed(Core::MouseButton::Left) & !this->core_.isMouseButtonPressed(Core::MouseButton::Right) & !this->core_.isMouseButtonPressed(Core::MouseButton::Middle)) {
+       lastMouseX = 0;
+       lastMouseY = 0;
+    }
+
     GLint patternFreqUniformLocation = glGetUniformLocation(shaderProgram, "patternFreq");
     glUniform1i(patternFreqUniformLocation, patternFreq);
 
@@ -217,10 +223,14 @@ void HelloCube::mouseMove(double xpos, double ypos) {
         int moveX = 0;
         int moveY = 0;
 
-        if (xpos - lastMouseX < 0) moveX = -1;
-        if (xpos - lastMouseX > 0) moveX = 1;
-        if (ypos - lastMouseY < 0) moveY = -1;
-        if (ypos - lastMouseY > 0) moveY = 1;
+        //when mouse position marker is at zero, wait for one frame
+        if (lastMouseX != 0) {
+            moveX = xpos - lastMouseX;
+        }
+        if (lastMouseY != 0) {
+            moveY = ypos - lastMouseY;
+        }
+
 
         // std::cout << moveX << ',' << moveY << std::endl;
 
