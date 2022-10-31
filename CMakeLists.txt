@@ -1,11 +1,4 @@
-cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
-
-# Policies
-cmake_policy(SET CMP0091 NEW)
-
-# add opencv
-# find_package( OpenCV REQUIRED PATHS "/usr/lib/x86_64-linux-gnu/cmake/opencv4/")
-# include_directories(${OpenCV_INCLUDE_DIRS})
+cmake_minimum_required(VERSION 3.15...3.24 FATAL_ERROR)
 
 # Disable in source build
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
@@ -113,7 +106,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_include_directories(${PROJECT_NAME} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 target_link_libraries(${PROJECT_NAME} PRIVATE
-  # ${OpenCV_LIBS}
   OpenGL::GL
   glfw
   glad
