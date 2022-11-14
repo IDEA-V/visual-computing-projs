@@ -1,0 +1,5 @@
+# Ignore data files for smaller repo size. Just keep engine as demo dataset.
+*
+!.gitignore
+!engine.dat
+!engine.raw

@@ -1,0 +1,4 @@
+ObjectFileName: 	engine.raw
+Resolution: 		256 256 128
+SliceThickness:		1.0 1.0 1.0
+Format: 		UCHAR

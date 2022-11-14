@@ -11,7 +11,8 @@ mark_as_advanced(FORCE
 # GLFW
 FetchContent_Declare(glfw
   GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG 3.3.8)
+  GIT_TAG 3.3.8
+  GIT_SHALLOW TRUE)
 FetchContent_GetProperties(glfw)
 if (NOT glfw_POPULATED)
   message(STATUS "Fetch glfw ...")
@@ -55,7 +56,8 @@ set_target_properties(glad PROPERTIES FOLDER libs)
 # glm
 FetchContent_Declare(glm
   GIT_REPOSITORY https://github.com/g-truc/glm.git
-  GIT_TAG 0.9.9.8)
+  GIT_TAG 0.9.9.8
+  GIT_SHALLOW TRUE)
 FetchContent_GetProperties(glm)
 if (NOT glm_POPULATED)
   message(STATUS "Fetch glm ...")
@@ -93,7 +95,8 @@ endif ()
 # imgui
 FetchContent_Declare(imgui
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG v1.88)
+  GIT_TAG v1.88
+  GIT_SHALLOW TRUE)
 FetchContent_GetProperties(imgui)
 if (NOT imgui_POPULATED)
   message(STATUS "Fetch imgui ...")
@@ -110,7 +113,8 @@ endif ()
 # imGuIZMO.quat
 FetchContent_Declare(imguizmo
   GIT_REPOSITORY https://github.com/BrutPitt/imGuIZMO.quat.git
-  GIT_TAG v3.0)
+  GIT_TAG v3.0
+  GIT_SHALLOW TRUE)
 FetchContent_GetProperties(imguizmo)
 if (NOT imguizmo_POPULATED)
   message(STATUS "Fetch imguizmo ...")
@@ -146,7 +150,8 @@ endif ()
 # datraw
 FetchContent_Declare(datraw
   GIT_REPOSITORY https://github.com/UniStuttgart-VISUS/datraw.git
-  GIT_TAG 9acb95e9b65be83bd7a521574fe9e5fe44652ae3)
+  GIT_TAG v1.0.6
+  GIT_SHALLOW TRUE)
 FetchContent_GetProperties(datraw)
 if (NOT datraw_POPULATED)
   message(STATUS "Fetch datraw ...")
