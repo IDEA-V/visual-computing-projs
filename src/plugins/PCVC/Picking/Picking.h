@@ -56,6 +56,7 @@ namespace OGL4Core2::Plugins::PCVC::Picking {
 
         void drawToLightFBO();
 
+        void setLightViewMatrix(float, float, float);
 
         // Window state
         int wWidth;              //!< width of the window
