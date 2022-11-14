@@ -317,8 +317,6 @@ Torus::Torus(Picking& basePlugin, int id, std::shared_ptr<glowl::Texture2D> tex)
     {torusTexCoords, {sizeof(float)*2, {{2, GL_FLOAT, GL_FALSE, 0}} } }
     };
 
-    glowl::VertexLayout torusLayout{
-        {0}, {{3, GL_FLOAT, GL_FALSE, 0}, {3, GL_FLOAT, GL_FALSE, 0}, {2, GL_FLOAT, GL_FALSE, 0}} };
     va = std::make_unique<glowl::Mesh>(torusVertex_data,
         torusIndices, GL_UNSIGNED_INT, GL_TRIANGLE_STRIP, GL_STATIC_DRAW);
 

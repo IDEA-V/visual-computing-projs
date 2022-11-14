@@ -112,7 +112,7 @@ void main() {
         float lightDistance = lightCoord.z;
 
         float shadow = 0.0;
-        if ( lightDepth < lightDistance && abs(lightDepth - lightDistance) > 0.000001) {
+        if ( lightDepth < lightDistance && abs(lightDepth - lightDistance) > 0.00001) {
             shadow = 1.0;
         }
         

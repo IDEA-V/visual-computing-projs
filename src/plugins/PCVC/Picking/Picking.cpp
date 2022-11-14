@@ -177,11 +177,13 @@ void Picking::render() {
     glViewport(0, 0, wWidth, wHeight);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glm::vec3 lightPos(0.0);
+    glm::vec3 lightPos;
+    lightPos = inverse(lightViewMx) * glm::vec4(0.0, 0.0, 0.0,1.0);
+
     //for some reason xy axis need to be negative :)
-    lightPos.x = -lightDist * cos(glm::radians(lightLat)) * cos(glm::radians(lightLong));
-    lightPos.y = -lightDist * cos(glm::radians(lightLat)) * sin(glm::radians(lightLong));
-    lightPos.z = lightDist * sin(glm::radians(lightLat));
+    //lightPos.x = lightDist * cos(glm::radians(lightLong)) * cos(glm::radians(lightLat));
+    //lightPos.y = lightDist * cos(glm::radians(lightLong)) * sin(glm::radians(lightLat));
+    //lightPos.z = lightDist * sin(glm::radians(lightLong));
 
     glm::vec3 lightDirection = glm::normalize(lightPos);
 
