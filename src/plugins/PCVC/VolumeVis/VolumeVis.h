@@ -31,7 +31,7 @@ namespace OGL4Core2::Plugins::PCVC::VolumeVis {
         void mouseMove(double xpos, double ypos) override;
 
     private:
-        enum class ViewMode { LineOfSight = 0, Mip = 1, Isosurface = 2, Volume = 3 };
+        enum class ViewMode { LineOfSight = 0, Mip = 1, Isosurface = 2, Volume = 3, Noise = 4 };
 
         void renderGUI();
 

@@ -9,6 +9,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 #include <imgui_stdlib.h>
+#include <glm/gtx/string_cast.hpp>
+#include <string>
+#include <tuple>
+#include <iostream>
 
 #include "core/Core.h"
 #include "core/util/ImGuiUtil.h"
@@ -35,9 +39,9 @@ VolumeVis::VolumeVis(const Core::Core& c)
       // --------------------------------------------------------------------------------
       // TODO: Set maxSteps to reasonable default, explain here! Current value is just a placeholder.
       // --------------------------------------------------------------------------------
-      maxSteps(42),
-      stepSize(0.01f),
-      scale(1.0f),
+      maxSteps(600),
+      stepSize(0.001f),
+      scale(0.02f),
       isoValue(0.5f),
       ambientColor(glm::vec3(1.0f, 1.0f, 1.0f)),
       diffuseColor(glm::vec3(1.0f, 1.0f, 1.0f)),
@@ -76,6 +80,7 @@ VolumeVis::VolumeVis(const Core::Core& c)
     // Load the volume file and its transfer function
     loadVolumeFile(0);
     loadTransferFunc("engine.tf");
+    initTransferFunc();
 
     // Set OpenGL state.
     glEnable(GL_DEPTH_TEST);
@@ -92,7 +97,8 @@ VolumeVis::~VolumeVis() {
     // --------------------------------------------------------------------------------
     //  TODO: Do not forget to clear all allocated sources.
     // --------------------------------------------------------------------------------
-
+    glDeleteTextures(1, &volumeTex);
+    glDeleteTextures(1, &tfTex);
     // Reset OpenGL state.
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -123,6 +129,7 @@ void VolumeVis::renderGUI() {
                 {ViewMode::Mip, "Mip"},
                 {ViewMode::Isosurface, "Isosurface"},
                 {ViewMode::Volume, "Volume"},
+                {ViewMode::Noise, "Noise"},
             });
         ImGui::InputInt("MaxSteps", &maxSteps);
         maxSteps = std::clamp(maxSteps, 1, 10000);
@@ -171,6 +178,9 @@ void VolumeVis::render() {
         // --------------------------------------------------------------------------------
         //  TODO: Set the viewport and viewAspect.
         // --------------------------------------------------------------------------------
+        float volumeWHeight = wHeight - editorHeight;
+        glViewport(0, editorHeight, wWidth, volumeWHeight);
+        viewAspect = static_cast<float>(wWidth) / static_cast<float>(volumeWHeight);
     } else {
         glViewport(0, 0, wWidth, wHeight);
         viewAspect = static_cast<float>(wWidth) / static_cast<float>(wHeight);
@@ -180,11 +190,93 @@ void VolumeVis::render() {
     // --------------------------------------------------------------------------------
     //  TODO: Draw (only) the volume.
     // --------------------------------------------------------------------------------
+    shaderVolume->use();
+
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_3D, volumeTex);
+    shaderVolume->setUniform("volumeTex", 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_1D, tfTex);
+    shaderVolume->setUniform("transferTex", 1);
+
+    glm::mat4 projMx = glm::perspective(glm::radians(fovY), viewAspect, 1.0f, 50.0f);
+    shaderVolume->setUniform("orthoProjMx", orthoProjMx);
+    shaderVolume->setUniform("invViewMx", inverse(camera->viewMx()));
+    shaderVolume->setUniform("invViewProjMx", inverse(camera->viewMx()) * inverse(projMx));
+
+    shaderVolume->setUniform("volumeRes", (glm::vec3)volumeRes);
+    shaderVolume->setUniform("volumeDim", volumeDim);
+
+    shaderVolume->setUniform("viewMode", (int)viewMode);
+    shaderVolume->setUniform("showBox", showBox);
+    shaderVolume->setUniform("useRandom", useRandom);
+    
+
+    shaderVolume->setUniform("maxSteps", maxSteps);
+    shaderVolume->setUniform("stepSize", stepSize);
+    shaderVolume->setUniform("scale", scale);
+    
+    shaderVolume->setUniform("isovalue", isoValue);
+
+    shaderVolume->setUniform("ambient", ambientColor);
+    shaderVolume->setUniform("diffuse", diffuseColor);
+    shaderVolume->setUniform("specular", specularColor);
+    shaderVolume->setUniform("k_amb", k_ambient);
+    shaderVolume->setUniform("k_diff", k_diffuse);
+    shaderVolume->setUniform("k_spec", k_specular);
+    shaderVolume->setUniform("k_exp", k_exp);
+    
+    shaderVolume->setUniform("width", wWidth);
+    shaderVolume->setUniform("height", wHeight);
+    // int t = static_cast<int> (time(NULL));
+
+    vaQuad->draw();
+    glUseProgram(0);
+    glBindTexture(GL_TEXTURE_3D, 0);
 
     if (viewMode == ViewMode::Volume) {
         // --------------------------------------------------------------------------------
         //  TODO: Draw the transfer-function editor and histogram.
         // --------------------------------------------------------------------------------
+        glDisable(GL_DEPTH_TEST);
+        glViewport(0, 0, wWidth, editorHeight);
+        viewAspect = static_cast<float>(wWidth) / static_cast<float>(wHeight / 4);
+
+        // Draw checkerbroad background
+        shaderBackground->use();
+        shaderBackground->setUniform("orthoProjMx", orthoProjMx);
+        shaderBackground->setUniform("aspect", viewAspect);
+        vaQuad->draw();
+        glUseProgram(0);
+
+        // Draw histogram
+        shaderHisto->use();
+        shaderHisto->setUniform("maxBinValue", (float)histoMaxBinValue);
+        shaderHisto->setUniform("logPlot", histoLogplot);
+        shaderHisto->setUniform("orthoProjMx", orthoProjMx);
+        float binStepHalf = 1.0f / (histoNumBins-1);
+        shaderHisto->setUniform("binStepHalf", binStepHalf);
+
+        vaHisto->draw();
+        glUseProgram(0);
+        glEnable(GL_DEPTH_TEST);
+
+        shaderTfLines->use();
+        shaderTfLines->setUniform("orthoProjMx", orthoProjMx);
+        shaderTfLines->setUniform("channel", tfChannel);
+        vaTransferFunc->draw();
+        glUseProgram(0);
+
+        shaderTfView->use();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_1D, tfTex);
+        shaderTfView->setUniform("tex", 0);
+        shaderTfView->setUniform("orthoProjMx", orthoProjMx);
+        shaderTfView->setUniform("aspect", viewAspect);
+        vaQuad->draw();
+        glUseProgram(0);
+
     }
 }
 
@@ -272,6 +364,12 @@ void VolumeVis::keyboard(Core::Key key, Core::KeyAction action, [[maybe_unused]]
     // --------------------------------------------------------------------------------
     //  TODO: Add keyboard functionality for transfer function editor.
     // --------------------------------------------------------------------------------
+    if (key == Core::Key::Up) {
+        updateTransferFunc(tfChannel, 1.0f);
+    }
+    if (key == Core::Key::Down) {
+        updateTransferFunc(tfChannel, 0.0f);        
+    }
 }
 
 /**
@@ -285,6 +383,18 @@ void VolumeVis::mouseMove(double xpos, double ypos) {
     // --------------------------------------------------------------------------------
     //  TODO: Implement editing of transfer function.
     // --------------------------------------------------------------------------------
+    if (this->core_.isMouseButtonPressed(Core::MouseButton::Left) && this->core_.isKeyPressed(Core::Key::LeftControl)) {
+        int x = round(xpos/wWidth*255);
+        float y = ((wHeight - ypos)/editorHeight-0.1)/0.9;
+
+        if (x>255) x = 255;
+        if (y > 1.0) y = 1.0;
+        if (y < 0.0) y = 0.0;
+
+        // std::cout << x << " " << y << std::endl;
+        updateTransferFunc(x, tfChannel, y);
+
+    }
 }
 
 /**
@@ -354,7 +464,7 @@ void VolumeVis::initVAs() {
     const std::vector<GLuint> quadIndices{0, 1, 2, 3};
 
     glowl::Mesh::VertexDataList<float> vertexDataQuad{{quadVertices, {8, {{2, GL_FLOAT, GL_FALSE, 0}}}}};
-    vaQuad = std::make_unique<glowl::Mesh>(vertexDataQuad, quadIndices, GL_UNSIGNED_INT, GL_TRIANGLE_STRIP);
+    vaQuad = std::make_unique<glowl::Mesh>(vertexDataQuad, quadIndices, GL_UNSIGNED_INT, GL_TRIANGLE_STRIP, GL_STATIC_DRAW);
 }
 
 /**
@@ -375,6 +485,26 @@ void VolumeVis::loadVolumeFile(int idx) {
     //        such that the maximum dimension is 1.0.
     //        Calculate the histogram. Upload the volume as a 3D texture.
     // --------------------------------------------------------------------------------
+
+    datraw::raw_reader<char> rd = datraw::raw_reader<char>::open(volumeFile);
+    std::vector<datraw::uint8> raw = rd.read_current();
+    volumeRes = glm::uvec3(rd.info().resolution()[0], rd.info().resolution()[1], rd.info().resolution()[2]);
+    // std::cout << glm::to_string(volumeRes) << std::endl;
+    float max = std::max(std::max(volumeRes.x, volumeRes.y), volumeRes.z);
+    volumeDim = glm::vec3(volumeRes.x / max, volumeRes.y / max, volumeRes.z / max);
+    // std::cout << glm::to_string(volumeDim) << std::endl;
+
+    glGenTextures(1, &volumeTex);
+    glBindTexture(GL_TEXTURE_3D, volumeTex);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, rd.info().resolution()[0], rd.info().resolution()[1], rd.info().resolution()[2], 0, GL_RED, GL_UNSIGNED_BYTE, &raw[0]);
+    glBindTexture(GL_TEXTURE_3D, 0);
+
+    genHistogram(histoNumBins, raw);
 }
 
 /**
@@ -391,6 +521,42 @@ void VolumeVis::genHistogram(std::size_t bins, const std::vector<std::uint8_t>& 
     //        therefore the value range is [0, 255].
     //        Divide this value range into "bins" number of bins.
     // --------------------------------------------------------------------------------
+    float* histogramValueArray = new float[bins]{0};
+    for (int i = 0; i < values.size(); i++) {
+        if (bins <=256) {
+            histogramValueArray[(int)round(values[i]/255.0f*(bins-1))] += 1.0f;
+        }else{
+            uint v = values[i];
+            int a = ceil( (bins-1)/255.0f*(v-0.5));
+            int b = floor((bins-1)/255.0f*(v+0.5));
+            for (int j = a; j <= b; j++)
+            {
+                if (j >=0 && j<bins){
+                    histogramValueArray[j] += 1.0f;
+                }
+            }
+            
+        }
+    }
+
+    // Create vertex array and indices
+    std::vector<float> histogramVertices;
+    std::vector<GLuint> histogramIndices;
+    for (int i = 0; i < bins; i++) {
+        histogramVertices.push_back(i / (float)(bins-1));
+        histogramVertices.push_back(histogramValueArray[i]);
+        // std::cout << i / (float)(bins-1) << ' '<< histogramValueArray[i] << std::endl;
+        histogramIndices.push_back(i);
+        if (histoMaxBinValue < histogramValueArray[i]) histoMaxBinValue = histogramValueArray[i];
+    }
+
+    glowl::Mesh::VertexDataList<float> histoData{
+        {histogramVertices, {8, {{2, GL_FLOAT, GL_FALSE, 0}}}},
+    };
+
+    vaHisto = std::make_unique<glowl::Mesh>(histoData, histogramIndices, GL_UNSIGNED_INT, GL_POINTS, GL_STATIC_DRAW);
+
+    delete[] histogramValueArray;
 }
 
 /**
@@ -401,6 +567,28 @@ void VolumeVis::initTransferFunc() {
     //  TODO: Initialize the transfer function vertex array and load the transfer
     //        function data into a 1D texture.
     // --------------------------------------------------------------------------------
+
+    std::vector<float> tfLocations;
+    std::vector<GLuint> tfIndices;
+    for (int i = 0; i < histoNumBins; i++) {
+        tfLocations.push_back(i / (float)(histoNumBins-1));
+        tfIndices.push_back(i);
+    }
+
+    glowl::Mesh::VertexDataList<float> histoData{
+        {tfLocations, {4, {{1, GL_FLOAT, GL_FALSE, 0}}}},
+        {tfData, {16, {{4, GL_FLOAT, GL_FALSE, 0}}}},
+    };
+
+    vaTransferFunc = std::make_unique<glowl::Mesh>(histoData, tfIndices, GL_UNSIGNED_INT, GL_LINE_STRIP, GL_STATIC_DRAW);
+
+    glGenTextures(1, &tfTex);
+    glBindTexture(GL_TEXTURE_1D, tfTex);
+    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, histoNumBins, 0, GL_RGBA, GL_FLOAT, tfData.data());
+    glBindTexture(GL_TEXTURE_1D, 0);
 }
 
 /**
@@ -412,6 +600,11 @@ void VolumeVis::updateTransferFunc(int channel, float value) {
     // --------------------------------------------------------------------------------
     //  TODO: Update the transfer function. Don't forget to update the texture and VA.
     // --------------------------------------------------------------------------------
+    for (int i = 0; i < tfNumPoints; i++)
+    {
+        tfData[4*i+channel] = value;
+    }
+    initTransferFunc();
 }
 
 /**
@@ -424,6 +617,13 @@ void VolumeVis::updateTransferFunc(int idx, int channel, float value) {
     // --------------------------------------------------------------------------------
     //  TODO: Update the transfer function. Don't forget to update the texture and VA.
     // --------------------------------------------------------------------------------
+    tfData[4*idx+channel] = value;
+    initTransferFunc();
+}
+
+std::tuple<std::string, std::string> getNext(std::string s, std::string delimiter) {
+    size_t i = s.find(delimiter);
+    return std::make_tuple(s.substr(i+1),s.substr(0, i));
 }
 
 /**
@@ -436,6 +636,39 @@ void VolumeVis::loadTransferFunc(const std::string& filename) {
     // --------------------------------------------------------------------------------
     //  TODO: Load the transfer function from file "path".
     // --------------------------------------------------------------------------------
+    std::string tf = getStringResource(path);
+    std::string number;
+    std::tie(tf, number) = getNext(tf, "\n");
+    tfNumPoints = std::stoi(number);
+    assert(tfNumPoints == histoNumBins && "tfNumPoints is not equal to histoNumBins");
+
+    std::string rgba;
+    for (int i = 0; i < tfNumPoints; i++)
+    {
+        std::tie(tf, rgba) = getNext(tf, "\n");
+        // std::cout << rgba << std::endl;
+        
+        std::string data;
+
+        //r
+        std::tie(rgba, data) = getNext(rgba, " ");
+        tfData.push_back(std::stof(data));
+        //g
+        std::tie(rgba, data) = getNext(rgba, " ");
+        tfData.push_back(std::stof(data));
+        //b
+        std::tie(rgba, data) = getNext(rgba, " ");
+        tfData.push_back(std::stof(data));
+        //a
+        tfData.push_back(std::stof(rgba));
+    }
+    
+    // for (int i = 0; i < tfNumPoints; i++)
+    // {
+    //     int j = 4*i;
+    //     std::cout << tfData[j] << " " << tfData[j+1] << " " << tfData[j+2] << " " << tfData[j+3] << std::endl;
+    // }
+
 }
 
 /**
@@ -448,4 +681,12 @@ void VolumeVis::saveTransferFunc(const std::string& filename) {
     // --------------------------------------------------------------------------------
     //  TODO: Save transfer function to file "path".
     // --------------------------------------------------------------------------------
+    std::ofstream f(path);
+    f << tfNumPoints << std::endl;
+    for (size_t i = 0; i < tfNumPoints; i++)
+    {
+        int j = 4*i;
+        f << std::to_string(tfData[j]) << " " << std::to_string(tfData[j+1]) << " " << std::to_string(tfData[j+2]) << " " << std::to_string(tfData[j+3]) << std::endl;
+    }
+    
 }

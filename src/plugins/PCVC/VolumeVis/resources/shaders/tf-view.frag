@@ -14,4 +14,9 @@ void main() {
     //  TODO: Draw the color of the transfer function preview (below the historgram).
     //        Mix with the background pattern to show transparency.
     // --------------------------------------------------------------------------------
+    if (texCoords.y >= 0.1) {
+        discard;
+    }else{
+        fragColor = texture(tex, texCoords.x);
+    }
 }
