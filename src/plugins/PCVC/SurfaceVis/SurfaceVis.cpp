@@ -10,6 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 #include <imgui_stdlib.h>
+#include <glm/gtx/string_cast.hpp>
 
 #include "core/Core.h"
 
@@ -567,6 +568,22 @@ void SurfaceVis::initControlPoints() {
 //     }
 // }
 
+float N (std::vector<float> U, int i, int p, float u) {
+    if (p==0) {
+        if (u >= U[i] && u < U[i+1]) return 1.0f;
+        else return 0.0f;
+    }else{
+        float quotient1;
+        float quotient2; 
+        if (U[i+3] - U[i] < 0.001) quotient1 = 0;
+        else quotient1 = (u-U[i])/(U[i+3] - U[i]);
+        if (U[i+3+1] - U[i+1] < 0.001) quotient2 = 0;
+        else quotient2 = (U[i+3+1] - u)/(U[i+3+1] - U[i+1]);
+
+        return quotient1*N(U, i, p-1, u) + quotient2*N(U, i+1, p-1, u);
+    }
+}
+
 void SurfaceVis::initKnotVectors() {
     std::vector<float> U;
     std::vector<float> V;
@@ -603,14 +620,34 @@ void SurfaceVis::initKnotVectors() {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, PBUffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float) * controlPointsVertices.size(), controlPointsVertices.data(), GL_STATIC_COPY);
 
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, VBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, PBUffer);
     float Us[U.size()];
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(float)*U.size(), Us);
-    for (size_t i = 0; i < U.size(); i++)
+    for (size_t i = 0; i < 3*numControlPoints_n * numControlPoints_m; i++)
     {
         std::cout << Us[i] << " ";
     }
     std::cout << std::endl;
+
+    // for (int i = 0; i <= numControlPoints_n; i++) {
+    //     for (int j = 0; j <= numControlPoints_m; j++) {
+    //         int index = numControlPoints_m * i + j;
+    //         std::cout << Us[3*index] << " " << Us[3*index+1] << " " << Us[3*index+2] << std::endl;
+    //         // glm::vec3 pij = glm::vec3(P[3*index], P[3*index+1], P[3*index+1]);
+    //         // S += N3(0, i, gl_TessCoord.x)*N3(1, j, gl_TessCoord.y)*pij;
+    //     }
+    // }
+
+    glm::vec3 S;
+    for (int i = 0; i <= numControlPoints_n; i++) {
+        for (int j = 0; j <= numControlPoints_m; j++) {
+            int index = numControlPoints_m * i + j;
+            glm::vec3 pij = glm::vec3(controlPointsVertices[3*index], controlPointsVertices[3*index+1], controlPointsVertices[3*index+2]);
+            S += N(U, i, 3, 0.5)*N(V, j, 3, 0.5)*pij;
+        }
+    }
+
+    std::cout << glm::to_string(S) <<std::endl;
 
 }
 
