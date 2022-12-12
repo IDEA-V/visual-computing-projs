@@ -30,7 +30,7 @@ Core::Core()
       running_(false),
       currentPlugin_(nullptr),
       currentPluginIdx_(-1),
-      pluginSelectionIdx_(2),
+      pluginSelectionIdx_(3),
       windowWidth_(-1),
       windowHeight_(-1),
       framebufferWidth_(-1),

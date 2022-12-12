@@ -49,13 +49,17 @@ namespace OGL4Core2::Plugins::PCVC::SurfaceVis {
         // --------------------------------------------------------------------------------
         //  TODO: Define methods needed for surface/control point handling.
         // --------------------------------------------------------------------------------
+        void initControlPoints();
+        void initKnotVectors();
 
         // Window state
         int wWidth;        //!< window width
         int wHeight;       //!< window height
         double lastMouseX; //!< last mouse position x
         double lastMouseY; //!< last mouse position y
-
+        float zNear;
+        float zFar;
+        int moveMode;
         // View
         std::shared_ptr<Core::OrbitCamera> camera; //!< view matrix
         glm::mat4 projMx;                          //!< projection matrix
@@ -81,7 +85,13 @@ namespace OGL4Core2::Plugins::PCVC::SurfaceVis {
         // --------------------------------------------------------------------------------
         //  TODO: Define variables needed for surface generation/state.
         // --------------------------------------------------------------------------------
-
+        std::vector<float> controlPointsVertices;
+        std::vector<float> controlPointsColor;
+        std::vector<GLuint> controlPointsIndices;
+        std::unique_ptr<glowl::Mesh> vaControlPoints_LINES;
+        GLuint UBuffer;
+        GLuint VBuffer;
+        GLuint PBUffer;
         // GUI variables
         float fovY;               //!< camera's vertical field of view
         bool showBox;             //!< toggle box drawing
@@ -95,6 +105,12 @@ namespace OGL4Core2::Plugins::PCVC::SurfaceVis {
         //  TODO: Define GUI variables needed for surface:
         //    number of control points, picked control point, position, tessellation level
         // --------------------------------------------------------------------------------
+        int numControlPoints_n;
+        int numControlPoints_m;
+        int pickedId;
+        float pickedPosition[3];
+        int tessLevelInner;
+        int tessLevelOuter;
 
         glm::vec3 ambientColor;
         glm::vec3 diffuseColor;
