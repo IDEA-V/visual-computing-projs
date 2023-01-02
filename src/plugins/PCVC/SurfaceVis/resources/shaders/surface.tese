@@ -41,9 +41,9 @@ float N1 (int uv, int i, float u) {
 
     float quotient1;
     float quotient2; 
-    if (U[i+3] - U[i] < 0.001) quotient1 = 0;
+    if (U[i+3] == U[i]) quotient1 = 0;
     else quotient1 = (u-U[i])/(U[i+3] - U[i]);
-    if (U[i+3+1] - U[i+1] < 0.001) quotient2 = 0;
+    if (U[i+3+1] == U[i+1]) quotient2 = 0;
     else quotient2 = (U[i+3+1] - u)/(U[i+3+1] - U[i+1]);
 
     return quotient1*N0(uv, i,u) + quotient2*N0(uv, i+1, u);
@@ -59,9 +59,9 @@ float N2 (int uv, int i, float u) {
 
     float quotient1;
     float quotient2; 
-    if (U[i+3] - U[i] < 0.001) quotient1 = 0;
+    if (U[i+3] == U[i]) quotient1 = 0;
     else quotient1 = (u-U[i])/(U[i+3] - U[i]);
-    if (U[i+3+1] - U[i+1] < 0.001) quotient2 = 0;
+    if (U[i+3+1] == U[i+1]) quotient2 = 0;
     else quotient2 = (U[i+3+1] - u)/(U[i+3+1] - U[i+1]);
 
     return quotient1*N1(uv, i,u) + quotient2*N1(uv, i+1, u);
@@ -77,9 +77,9 @@ float N3 (int uv, int i, float u) {
 
     float quotient1;
     float quotient2; 
-    if (U[i+3] - U[i] < 0.001) quotient1 = 0;
+    if (U[i+3] == U[i]) quotient1 = 0;
     else quotient1 = (u-U[i])/(U[i+3] - U[i]);
-    if (U[i+3+1] - U[i+1] < 0.001) quotient2 = 0;
+    if (U[i+3+1] == U[i+1]) quotient2 = 0;
     else quotient2 = (U[i+3+1] - u)/(U[i+3+1] - U[i+1]);
     
     return quotient1*N2(uv, i,u) + quotient2*N2(uv, i+1, u);
@@ -91,7 +91,7 @@ void main() {
     vec4 p2 = mix(gl_in[2].gl_Position, gl_in[3].gl_Position, gl_TessCoord.x);
     vec4 pos = mix(p1, p2, gl_TessCoord.y);
 
-    vec3 S;
+    vec3 S = vec3(0.0,0.0,0.0);
     for (int i = 0; i <= n; i++) {
         for (int j = 0; j <= m; j++) {
             int index = m * i + j;
