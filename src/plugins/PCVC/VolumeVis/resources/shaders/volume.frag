@@ -196,18 +196,14 @@ void main() {
     // --------------------------------------------------------------------------------
     //  TODO: Set up the ray and box. Do the intersection test and draw the box.
     // --------------------------------------------------------------------------------
-    float offsetX = random( int(round((texCoords.x+texCoords.y*100)*1000)) )-0.5;
-    float offsetY = random( int(round((texCoords.x+texCoords.y*100)*2000)) )-0.5;
+    float offset = random(int(round((texCoords.x+texCoords.y*100)*1000)));
 
     float NDCPosX;
     float NDCPosY;
-    if (useRandom) {
-        NDCPosX = 2.0f * (texCoords.x+offsetX/width) - 1.0f;
-        NDCPosY = 2.0f * (texCoords.y+offsetY/height) - 1.0f;
-    }else{
-        NDCPosX = 2.0f * texCoords.x - 1.0f;
-        NDCPosY = 2.0f * texCoords.y - 1.0f;
-    }
+
+    NDCPosX = 2.0f * texCoords.x - 1.0f;
+    NDCPosY = 2.0f * texCoords.y - 1.0f;
+
     vec4 clipPos = vec4(NDCPosX, NDCPosY, -1.0, 1.0);
 
     struct Ray ray;
@@ -276,6 +272,7 @@ void main() {
                 if (tStep >= tFar) break;
 
                 vec3 samplePos = tStep * ray.d + ray.o;
+                
                 float sampleValue = texture(volumeTex, mapTexCoords(samplePos)).x;
                 if ((sampleLastValue - isovalue)*(sampleValue - isovalue) < 0) {
                     // Calculate the position and the normal of isovalue, and use Blinn-Phong shading
@@ -299,10 +296,14 @@ void main() {
             vec3 Ca;
             float aa;
             for (int i = 1; i <= maxSteps; i++) {
-                float tStep = stepSize * i + tNear;
+                float tStep;
+                if (useRandom){
+                    tStep = stepSize * (i+offset) + tNear;
+                }else{
+                    tStep = stepSize * i + tNear;
+                }
                 if (tStep >= tFar) break;
                 vec3 samplePos = tStep * ray.d + ray.o;
-
                 float intensity = texture(volumeTex, mapTexCoords(samplePos)).x;
                 vec4 rgba = texture(transferTex, intensity);
 
@@ -318,7 +319,7 @@ void main() {
             break;
         }
         case 4: {
-            color = vec4(offsetX+0.5, offsetX+0.5, offsetX+0.5, 1.0);
+            color = vec4(offset, offset, offset, 1.0);
             break;
         }
         default: {
