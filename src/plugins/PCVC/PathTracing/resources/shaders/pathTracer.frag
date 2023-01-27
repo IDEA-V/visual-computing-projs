@@ -2,15 +2,17 @@
 #define PI 3.14159265
 #define EPSILON 0.0001
 
-int BOUNCE_NUMBER = 20;
+int BOUNCE_NUMBER = 4;
 
 in vec2 texCoords;
 
 layout(location = 0) out vec4 fragColor0;
-layout(location = 1) out uint fragColor1;
+// layout(location = 1) out uint fragColor1;
+layout(location = 1) out vec4 fragColor1;
 layout(location = 2) out vec4 fragColor2;
 
 uniform int showFBOAtt;
+uniform bool showDebug;
 
 uniform float zNear;
 uniform float zFar;
@@ -380,10 +382,10 @@ float reflectance(float cosine, float ref_idx) {
     return r0 + (1-r0)*pow((1 - cosine),5);
 }
 
-vec4 brdf(vec3 hitD, vec3 hitP, vec3 normal, inout Ray r, Object o, out bool refracted) {
+vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bool refracted) {
     // float seed = rand2D()+rand;
-    refracted = false;s
-    r.o = hitP + normal*0.01;
+    refracted = false;
+    r.o = hitP + normal*0.001;
     vec3 l = r.d;
     float pdf = 1.0;
     vec3 tangent = cross(normal, vec3(1.,0.,1.));
@@ -444,9 +446,7 @@ vec4 brdf(vec3 hitD, vec3 hitP, vec3 normal, inout Ray r, Object o, out bool ref
             // if (cannot_refract || reflectance(cos_theta, refraction_ratio) > rand2D()) {
             if (cannot_refract) {
                 direction = reflect(unit_direction, refract_normal);
-                r.d = normalize(direction);
                 if (dot(r.d, normal) < 0) normal = -normal;
-                return vec4(1.0);
             }else
                 direction = refract(unit_direction, refract_normal, refraction_ratio);
                 refracted = true;
@@ -471,14 +471,15 @@ bool intersectSphere(Ray r, float radius, vec3 pos, out float tNear, out float t
         tNear = (-b - sqrt(discriminant))/2/a;
         tFar = (-b + sqrt(discriminant))/2/a;
 
+
+        if (abs(tNear) < EPSILON) {
+            tNear = tFar;
+            vec3 hitPos = r.o + r.d*tFar;
+            normal = normalize(hitPos-pos);
+            return true;
+        }
         if (tNear > 0) {
             //ray is shoot from somewhere very close to the surface
-            if (tNear < EPSILON) {
-                tNear = tFar;
-                vec3 hitPos = r.o + r.d*tFar;
-                normal = normalize(hitPos-pos);
-                return true;
-            }
             vec3 hitPos = r.o + r.d*tNear;
             normal = normalize(hitPos-pos);
             return true;
@@ -545,12 +546,13 @@ vec3 zeroone (vec3 v) {
     return a/max3(a);
 }
 
-void rayColor(Ray ray, out vec4 fragColor0, out uint fragColor1, out vec4 fragColor2) {
+void rayColor(Ray ray, out vec4 fragColor0, out vec4 fragColor1, out vec4 fragColor2) {
 
     bool hit = true;
     int bounce = 0;
     vec4 emit = vec4(0.0,0.0,0.0,1.0);
     fragColor0 = vec4(1.0,1.0,1.0,1.0);
+    vec4 debugColor;
     while (hit && bounce < BOUNCE_NUMBER) {
         hit=false;
         float tNear=0;
@@ -570,31 +572,16 @@ void rayColor(Ray ray, out vec4 fragColor0, out uint fragColor1, out vec4 fragCo
                 if (tNear == 0 || current_tNear < tNear) {
                     hit = true;
                     tNear = current_tNear;
-                    if (o.emitting) {
-                        hit = false;
-                        // if ( dot(ray.d, vec3(0.0,0.0,1.0)) < 0) {
-                        //     // hit=true;
-                        //     normal = current_normal;
-                        //     hitO = o;
-                        //     o.albedo = vec4(0.8,0.8,0.8,1.0);
+                    normal = current_normal;
+                    hitO = o;
 
-                        //     // fragColor0 = vec4(1.0);
-                        //     // emit = vec4(1.0);
-                        // }else{
-                        //     emit = o.albedo;
-                        // }
-                        emit = o.albedo;
-
-                        // emit = o.albedo;
-                        // hitO = o;
-                    }else{
-                        normal = current_normal;
-                        hitO = o;
-                    }
+                    debugColor = vec4(ray.o, 1.0);
+                    fragColor1 = vec4(hitO.emitting);
+                    fragColor2 = vec4(ray.d, tNear);
 
                     if (bounce==0){
-                        fragColor1 = o.id;
-                        fragColor2 = vec4(normal/2+0.5, 1.0);
+                        // fragColor1 = o.id;
+                        // fragColor2 = vec4(normal/2+0.5, 1.0);
                     }
                 }
             }
@@ -603,28 +590,27 @@ void rayColor(Ray ray, out vec4 fragColor0, out uint fragColor1, out vec4 fragCo
 
         // fragColor2 = vec4(bounce, bounce, bounce, 1.0f);
         if (hit) {
-            hitPos = ray.o + ray.d*tNear;
-
-            bool refracted;
-            vec4 color = brdf(ray.d, hitPos, normal, ray, hitO, refracted);
-
-            if (!refracted){
-                fragColor0  *= color * dot(ray.d, normal);
+            if (hitO.emitting) {
+                hit = false;
+                emit = hitO.albedo;
             }else{
-                fragColor0  *= color;
-            }
-            // if (hitO.material == 3) {
-            //     fragColor0 += vec4(0.09, 0.08, 0.07, 0.0);
-            // }
+                hitPos = ray.o + ray.d*tNear;
 
-            if (bounce==0){
-                // fragColor2 = color;
+                bool refracted;
+                vec4 color = brdf(ray.d, hitPos, normal, ray, hitO, refracted);
+
+                if (!refracted){
+                    fragColor0  *= color * dot(ray.d, normal);
+                }else{
+                    fragColor0  *= color;
+                }
             }
         }
 
         bounce++;
     }
     fragColor0 = fragColor0*emit;
+    if (showDebug) fragColor0 = debugColor;
 }
 
 void main() {

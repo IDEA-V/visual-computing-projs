@@ -51,7 +51,7 @@ PathTracing::PathTracing(const Core::Core& c)
       lightFboTexColor(0),
       lightFboTexDepth(0),
       backgroundColor(glm::vec3(0.2f, 0.2f, 0.2f)),
-      useWireframe(false),
+      showDebug(false),
       showFBOAtt(0),
       fovY(45.0),
       zNear(0.01f),
@@ -70,7 +70,7 @@ PathTracing::PathTracing(const Core::Core& c)
     glGenBuffers(1, &ObjectBuffer);
 
     //Light source
-    glm::vec3 pos = glm::vec3(-1.5f, -2.5f, 3.5f);
+    glm::vec3 pos = glm::vec3(-1.5f, -2.5f, 3.4f);
     glm::vec4 color = glm::vec4(25.0f, 25.0f, 25.0f, 1.0f);
     // std::cout << glm::to_string(color) << std::endl;
     Object o = Object::LighSourceRect(1, pos, color, 1.0, 0.5, glm::vec3(1.5f, 0.0f, 0.0f), glm::vec3(0.0f, 2.5f, 0.0f));
@@ -83,14 +83,24 @@ PathTracing::PathTracing(const Core::Core& c)
     o = Object::Sphere(2, pos, color, 3, 0.4, 1.0, 1.0f);
     objectList.push_back(o);
 
-    pos = glm::vec3(-0.030000, 0.290000, 1.559999);
+    // pos = glm::vec3(-0.030000, 0.290000, 1.559999);
+    // color = glm::vec4(0.815, .418501512, .00180012, 1.0);
+    // o = Object::Sphere(3, pos, color, 2, 0.1, 0.5, 1.0f);
+    // objectList.push_back(o);
+
+    // pos = glm::vec3(1.234999, -1.149999, -0.094999);
+    // color = glm::vec4(0.815, .418501512, .00180012, 1.0);
+    // o = Object::Sphere(4, pos, color, 2, 0.4, 1.0, 1.0f);
+    // objectList.push_back(o);
+
+    pos = glm::vec3(-0.401028, -0.203178, 2.66945);
     color = glm::vec4(0.815, .418501512, .00180012, 1.0);
-    o = Object::Sphere(3, pos, color, 2, 0.1, 0.5, 1.0f);
+    o = Object::Sphere(4, pos, color, 2, 0.4, 1.0, 0.05f);
     objectList.push_back(o);
 
-    pos = glm::vec3(1.234999, -1.149999, -0.094999);
+    pos = glm::vec3(-0.422611, -0.17992, 2.6942);
     color = glm::vec4(0.815, .418501512, .00180012, 1.0);
-    o = Object::Sphere(4, pos, color, 2, 0.4, 1.0, 1.0f);
+    o = Object::Sphere(4, pos, color, 2, 0.4, 1.0, 0.05f);
     objectList.push_back(o);
 
     //floor
@@ -172,7 +182,6 @@ PathTracing::~PathTracing() {
 void PathTracing::renderGUI() {
     if (ImGui::CollapsingHeader("PathTracing", ImGuiTreeNodeFlags_DefaultOpen)) {
         camera->drawGUI();
-        ImGui::Checkbox("Wireframe", &useWireframe);
         // Dropdown menu to choose which framebuffer attachment to show
         ImGui::Combo("FBO attach.", &showFBOAtt, "Color\0IDs\0Normals\0LightView\0");
 
@@ -245,6 +254,11 @@ void PathTracing::renderGUI() {
             }
             file.close();
             delete data;
+        }
+        bool debugChanged = ImGui::Checkbox("debug", &showDebug);
+        if (debugChanged) {
+            std::cout << "Debug Mode: " << showDebug << std::endl;
+            frameNumber = 0;
         }
     }
 }
@@ -379,10 +393,17 @@ bool intersectSphere(Ray r, float radius, glm::vec3 pos, float tNear, float tFar
     if (discriminant > 0) {
         tNear = (-b - sqrt(discriminant))/2/a;
         tFar = (-b + sqrt(discriminant))/2/a;
-        // std::cout << tNear << tFar << std::endl;
+        std::cout << tNear<< " " << tFar << std::endl;
         if (tNear > 0) {
+            if (tNear < 0.0001) {
+                tNear = tFar;
+                glm::vec3 hitPos = r.o + r.d*tFar;
+                std::cout << tNear << std::endl;
+                return true;
+            }
             glm::vec3 hitPos = r.o + r.d*tNear;
             glm::vec3 normal = normalize(hitPos-pos);
+            std::cout << tNear << std::endl;
             return true;
         }else{
             if (length(r.o-pos)<radius) {
@@ -439,23 +460,27 @@ void PathTracing::mouseButton(Core::MouseButton button, Core::MouseButtonAction 
         // glm::vec3 offset = glm::vec3(random1()*2-1, random1()*2-1, random1()*2-1);
         // std::cout << glm::to_string(glm::vec3(offset)) << " " <<  glm::length(offset) << std::endl;
 
-        // Ray r = {glm::vec3(0.0f,0.0f,-2.0f), glm::vec3(0.0f,0.0f,-1.0f)};
-        // std::cout << intersectBox(r, glm::vec3(-2.5,-2.5,-1.5), glm::vec3(2.5,2.5,-1.5), 0.0f, 0.0f) << std::endl;
+        Ray r = {glm::vec3(-1.1162f, -2.35654f, -0.678621f), glm::vec3(0.196532f, 0.287829f, 0.937299f)};
+        std::cout << intersectSphere(r, 1.0f, glm::vec3(-1.009999, -2.250013,  0.310001), 0.0f, 0.0f) << std::endl;
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
         glReadBuffer(GL_COLOR_ATTACHMENT0);
-        float data[3];
-        glReadPixels(lastMouseX, wHeight - lastMouseY, 1, 1, GL_RGB, GL_FLOAT, data);
+        float data[4];
+        glReadPixels(lastMouseX, wHeight - lastMouseY, 1, 1, GL_RGBA, GL_FLOAT, data);
         glm::vec3 o = glm::vec3(data[0], data[1], data[2]);
-        std::cout << "ray.d: " << data[0] << ", " << data[1] << ", " << data[2] << std::endl;
+        std::cout << "color0: " << data[0] << ", " << data[1] << ", " << data[2] << ", " << data[3] << std::endl;
 
         // Ray r{glm::vec3(0.0, 0.0, 0.0), normalize(glm::vec3(-1.0, 0.0, 1.0))};
         // std::cout << "intersect: " << intersectSphere(r, 1.0, glm::vec3(0.0,0.0,0.0), 0.0, 0.0) << std::endl;
 
-        // glReadBuffer(GL_COLOR_ATTACHMENT2);
-        // glReadPixels(lastMouseX, wHeight - lastMouseY, 1, 1, GL_RGB, GL_FLOAT, data);
-        // glm::vec3 d = glm::vec3(data[0], data[1], data[2]);
-        // std::cout << "ray.d: " << data[0] << ", " << data[1] << ", " << data[2] << std::endl;
+        glReadBuffer(GL_COLOR_ATTACHMENT1);
+        glReadPixels(lastMouseX, wHeight - lastMouseY, 1, 1, GL_RGBA, GL_FLOAT, data);
+        std::cout << "color1: " << data[0] << ", " << data[1] << ", " << data[2] << ", " << data[3] << std::endl;
+
+        glReadBuffer(GL_COLOR_ATTACHMENT2);
+        glReadPixels(lastMouseX, wHeight - lastMouseY, 1, 1, GL_RGBA, GL_FLOAT, data);
+        glm::vec3 d = glm::vec3(data[0], data[1], data[2]);
+        std::cout << "color2: " << data[0] << ", " << data[1] << ", " << data[2] << ", " << data[3] << std::endl;
 
         // glReadBuffer(GL_COLOR_ATTACHMENT2);
         // glReadPixels(lastMouseX, wHeight - lastMouseY, 1, 1, GL_RGB, GL_FLOAT, data);
@@ -648,16 +673,16 @@ void PathTracing::initFBOs() {
 
     // Create textures for three color attachments
     
-    fboTexColor = createFBOTexture(wWidth, wHeight, GL_RGB32F, GL_RGB, GL_FLOAT, GL_LINEAR); // Color
+    fboTexColor = createFBOTexture(wWidth, wHeight, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR); // Color
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexColor, 0);
 
-    fboTexId = createFBOTexture(wWidth, wHeight, GL_R32I, GL_RED_INTEGER, GL_UNSIGNED_INT, GL_LINEAR); // ID
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, fboTexId, 0);
-
-    // fboTexId = createFBOTexture(wWidth, wHeight, GL_RGB32F, GL_RGB, GL_FLOAT, GL_LINEAR); // Normals
+    // fboTexId = createFBOTexture(wWidth, wHeight, GL_R32I, GL_RED_INTEGER, GL_UNSIGNED_INT, GL_LINEAR); // ID
     // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, fboTexId, 0);
 
-    fboTexNormals = createFBOTexture(wWidth, wHeight, GL_RGB32F, GL_RGB, GL_FLOAT, GL_LINEAR); // Normals
+    fboTexId = createFBOTexture(wWidth, wHeight, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR); // Normals
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, fboTexId, 0);
+
+    fboTexNormals = createFBOTexture(wWidth, wHeight, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR); // Normals
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, fboTexNormals, 0);
 
     // Create textures for depth attachment
@@ -800,6 +825,7 @@ void PathTracing::drawToFBO() {
     shaderPathTracer->setUniform("objectNumber", (uint) objectList.size());
     shaderPathTracer->setUniform("rand", (float) rand()/RAND_MAX);
     shaderPathTracer->setUniform("frameNumber", frameNumber);
+    shaderPathTracer->setUniform("showDebug", showDebug);
 
     GLint unit = 0; // Color
     glActiveTexture(GL_TEXTURE0 + unit);
@@ -827,32 +853,6 @@ void PathTracing::drawToFBO() {
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     // glDisable(GL_FRAMEBUFFER_SRGB);
-}
-
-/**
- * @brief Draw view of spot light into corresponding FBO.
- */
-void PathTracing::drawToLightFBO() {
-    if (!glIsFramebuffer(lightFbo)) {
-        return;
-    }
-
-    // --------------------------------------------------------------------------------
-    //  TODO: Render the scene from the view of the light (bonus task only).
-    // --------------------------------------------------------------------------------
-    //set up view matrix first
-    setLightViewMatrix(lightLong, lightLat, lightDist);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, lightFbo);
-    
-    //same above
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearTexImage(lightFboTexColor, 0, GL_RGB, GL_FLOAT, glm::value_ptr(backgroundColor));
-
-    //draw the color
-    GLenum drawBuffer[1] = { GL_COLOR_ATTACHMENT3 };
-    glDrawBuffers(1, drawBuffer);
-
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
 
 void PathTracing::setLightViewMatrix(float lightLong, float lightLat, float lightDist) {

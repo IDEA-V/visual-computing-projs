@@ -28,7 +28,7 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         alignas(16) glm::vec3 s2;
 
         static Object Sphere(uint id, glm::vec3 pos, glm::vec4 albedo, int material, float roughness, float metalness, float radius) {
-            Object o = {0, id, false, material, roughness, metalness, pos, albedo, 1.0f};
+            Object o = {0, id, false, material, roughness, metalness, pos, albedo, radius};
             return o;
         }
 
@@ -144,7 +144,7 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         float currentObjectRadius;
         glm::vec3 currentObjectColor; //!< current object color
         glm::vec3 backgroundColor; //!< background color
-        bool useWireframe;         //!< toggle wireframe mode
+        bool showDebug;
         int showFBOAtt;            //!< selector to show the different fbo attachments
         float fovY;                //!< Camera's vertical field of view
         float zNear;               //!< near clipping plane
