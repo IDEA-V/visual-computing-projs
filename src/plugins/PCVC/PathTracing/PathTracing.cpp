@@ -766,7 +766,7 @@ void PathTracing::drawToFBO() {
     GLint unit = 0; // Color
     glActiveTexture(GL_TEXTURE0 + unit);
     glBindTexture(GL_TEXTURE_2D, fboTexColor);
-    shaderQuad->setUniform("fboTexColor", unit);
+    shaderPathTracer->setUniform("fboTexColor", unit);
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ObjectBuffer);
 

@@ -17,7 +17,7 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
     struct Object {
         int type;
         uint id;
-        bool emitting;
+        int emitting;
         int material;
         float specular;
         float roughness;
@@ -29,12 +29,12 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         alignas(16) glm::vec3 s2;
 
         static Object Sphere(uint id, glm::vec3 pos, glm::vec4 albedo, int material, float specular, float roughness, float metalness, float radius) {
-            Object o = {0, id, false, material, specular, roughness, metalness, pos, albedo, radius};
+            Object o = {0, id, 0, material, specular, roughness, metalness, pos, albedo, radius};
             return o;
         }
 
         static Object Rect(uint id, glm::vec3 pos, glm::vec4 albedo, int material, float specular, float roughness, float metalness, glm::vec3 s1, glm::vec3 s2) {
-            Object o = {1, id, false, material, specular, roughness, metalness, pos, albedo, 0.0f, s1, s2};
+            Object o = {1, id, 0, material, specular, roughness, metalness, pos, albedo, 0.0f, s1, s2};
             return o;
         }
 
@@ -64,7 +64,7 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         }
 
         static Object LighSourceRect(uint id, glm::vec3 pos, glm::vec4 albedo, float roughness, float metalness, glm::vec3 s1, glm::vec3 s2) {
-            Object o = {1, id, true, 2, 1.0, roughness, metalness, pos, albedo, 0.0f, s1, s2};
+            Object o = {1, id, 1, 2, 1.0, roughness, metalness, pos, albedo, 0.0f, s1, s2};
             return o;
         }
 

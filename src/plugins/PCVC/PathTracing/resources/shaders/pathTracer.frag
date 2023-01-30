@@ -32,7 +32,7 @@ uniform sampler2D fboTexColor;
 struct Object {
     int type;
     uint id;
-    bool emitting;
+    int emitting;
     int material;
     float specular;
     float roughness;
@@ -469,7 +469,7 @@ void rayColor(Ray ray, out vec4 fragColor0, out uint fragColor1, out vec4 fragCo
 
         // fragColor2 = vec4(bounce, bounce, bounce, 1.0f);
         if (hit) {
-            if (hitO.emitting) {
+            if (hitO.emitting == 1) {
                 //hit the light source
                 hit = false;
                 emit = hitO.albedo;
