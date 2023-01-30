@@ -56,6 +56,7 @@ struct Ray {
 vec2 randState;
 float rand2D()
 {
+    //return random number and update the seed at the same time
     randState.x = fract(sin(dot(randState.xy, vec2(12.9898, 78.233))) * 43758.5453);
     randState.y = fract(sin(dot(randState.xy, vec2(12.9898, 78.233))) * 43758.5453);
     
@@ -63,7 +64,6 @@ float rand2D()
 }
 
 vec3 random_cos_weighted_hemisphere_direction( const vec3 n) {
-  	// vec2 r = hash2(seed);
     vec2 r = vec2(rand2D(), rand2D());
 	vec3  uu = normalize(cross(n, abs(n.y) > .5 ? vec3(1.,0.,0.) : vec3(0.,1.,0.)));
 	vec3  vv = cross(uu, n);
@@ -256,13 +256,16 @@ vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bo
     tangent = normalize(cross(normal,binormal));
     
     switch (o.material) {
+        //objects
         case 2:
-
             if (rand2D() > 0.5 && sampleLight(hitP, normal, pdf, r.d)) {
+                //sample the light already
             }else{
                 if (rand2D() > 0.5) {
+                    //deffuse sampling
                     r.d = random_cos_weighted_hemisphere_direction(normal);
                 }else{
+                    //micro facet sampling
                     disneyMicrofacetAnisoSample(r.d, -l, tangent, binormal, vec2(rand2D(), rand2D()), normal, o.roughness);
                 }
                 pdf = 0.5 * pdfCos(dot(r.d, normal)) + 0.5 * pdfMicrofacetAniso(r.d, -l, tangent, binormal, normal, o.roughness);
@@ -276,7 +279,7 @@ vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bo
             return vec4(evalBRDF(normal, -l, r.d, o.albedo.rgb, o.specular, o.roughness, o.metalness)/pdf, 1.0);
             break;
 
-
+        //background
         case 1:
             r.d = random_cos_weighted_hemisphere_direction(normal);
             pdf = pdfCos(dot(r.d, normal));
@@ -287,6 +290,8 @@ vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bo
 
             return vec4(o.albedo.rgb/PI/pdf, 1.0);
             break;
+            
+        //transparent objects
         case 3:
             // r.o = hitP + r.d*0.01;
             r.o = hitP;
@@ -309,8 +314,8 @@ vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bo
             vec3 direction;
 
             if (cannot_refract || reflectance(cos_theta, refraction_ratio) > rand2D()) {
-            // if (cannot_refract) {
                 direction = reflect(unit_direction, refract_normal);
+                //avoid negative color
                 if (dot(direction, normal) < 0) normal = -normal;
             }else{
                 direction = refract(unit_direction, refract_normal, refraction_ratio);
@@ -451,11 +456,11 @@ void rayColor(Ray ray, out vec4 fragColor0, out uint fragColor1, out vec4 fragCo
 
                     debugColor = vec4(ray.o, 1.0);
                     // fragColor1 = vec4(hitO.emitting);
-                    fragColor2 = vec4(ray.d, tNear);
+                    // fragColor2 = vec4(ray.d, tNear);
 
                     if (bounce==0){
                         fragColor1 = o.id;
-                        // fragColor2 = vec4(normal/2+0.5, 1.0);
+                        fragColor2 = vec4(normal/2+0.5, 1.0);
                     }
                 }
             }
@@ -465,17 +470,11 @@ void rayColor(Ray ray, out vec4 fragColor0, out uint fragColor1, out vec4 fragCo
         // fragColor2 = vec4(bounce, bounce, bounce, 1.0f);
         if (hit) {
             if (hitO.emitting) {
+                //hit the light source
                 hit = false;
                 emit = hitO.albedo;
             }else{
                 hitPos = ray.o + ray.d*tNear;
-
-                // if (sampleLight(hitP, normal, pdf, r.d)){
-                //     return vec4(evalBRDF(normal, -l, r.d, o.albedo.rgb, o.specular, o.roughness, o.metalness)/pdf, 1.0);
-                // }else{
-                //     return vec4(1.0);
-                // }
-
                 bool refracted;
                 vec4 color = brdf(ray.d, hitPos, normal, ray, hitO, refracted);
 
@@ -510,8 +509,10 @@ void main() {
     float gamma = 2.2;
     if (frameNumber >= 2) {
         vec3 lastColor = texture(fboTexColor, texCoords).rgb;
+        //get back to linear space before blending
         lastColor = pow(lastColor, vec3(gamma));
         fragColor0 = vec4( lastColor*(frameNumber-1)/frameNumber + fragColor0.rgb/frameNumber, 1.0);
-        fragColor0.rgb = pow(fragColor0.rgb, vec3(1.0/gamma));
     }
+    //gamma correction
+    fragColor0.rgb = pow(fragColor0.rgb, vec3(1.0/gamma));
 }
