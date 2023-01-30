@@ -2,13 +2,13 @@
 #define PI 3.14159265
 #define EPSILON 0.0001
 
-int BOUNCE_NUMBER = 4;
+int BOUNCE_NUMBER = 10;
 
 in vec2 texCoords;
 
 layout(location = 0) out vec4 fragColor0;
-// layout(location = 1) out uint fragColor1;
-layout(location = 1) out vec4 fragColor1;
+layout(location = 1) out uint fragColor1;
+// layout(location = 1) out vec4 fragColor1;
 layout(location = 2) out vec4 fragColor2;
 
 uniform int showFBOAtt;
@@ -34,6 +34,7 @@ struct Object {
     uint id;
     bool emitting;
     int material;
+    float specular;
     float roughness;
     float metalness;
     vec3 pos;
@@ -53,35 +54,12 @@ struct Ray {
 };
 
 vec2 randState;
-
-
 float rand2D()
 {
     randState.x = fract(sin(dot(randState.xy, vec2(12.9898, 78.233))) * 43758.5453);
     randState.y = fract(sin(dot(randState.xy, vec2(12.9898, 78.233))) * 43758.5453);
     
     return randState.x;
-}
-
-vec3 create_basis(const vec3 n, const vec3 d) {
-    vec3 w = normalize(n);
-    vec3 a = (abs(w.r) > 0.9) ? vec3(0,1,0) : vec3(1,0,0);
-    vec3 v = normalize(cross(w, a));
-    vec3 u = cross(w, v);
-
-    return u*d.r + v*d.g + w*d.b;
-}
-
-vec3 random_cosine_direction(const vec3 n) {
-    float r1 = rand2D();
-    float r2 = rand2D();
-    float z = sqrt(1-r2);
-
-    float phi = 2*PI*r1;
-    float x = cos(phi)*sqrt(r2);
-    float y = sin(phi)*sqrt(r2);
-
-    return create_basis(n, vec3(x, y, z));
 }
 
 vec3 random_cos_weighted_hemisphere_direction( const vec3 n) {
@@ -98,56 +76,12 @@ vec3 random_cos_weighted_hemisphere_direction( const vec3 n) {
 }
 
 //=============================================================================
-// GGX distribution function
-float ggx(float NoH, float roughness)
-{
-    float a2 = roughness * roughness;
-    float denom = NoH * NoH * a2 + 1.0 - NoH * NoH;
-    return a2 / (PI * denom * denom);
-}
-
-// Schlick fresnel function
-vec3 schlickFresnel(float VoH, vec3 f0)
-{
-    return f0 + (1.0 - f0) * pow(1.0 - VoH, 5.0);
-}
-
-// Schlick-GGX geometry function
-float schlick_ggx(float NoL, float NoV, float roughness)
-{
-    float k = roughness + 1.0;
-    k *= k * 0.125;
-    float gl = NoL / (NoL * (1.0 - k) + k);
-    float gv = NoV / (NoV * (1.0 - k) + k);
-    return gl * gv;
-}
-
-// Evaluate the Cook-Torrance specular BRDF
-vec3 cookTorranceBRDF(float NoL, float NoV, float NoH, float VoH, vec3 F, float roughness)
-{
-    vec3 DFG = ggx(NoH, roughness) * F * schlick_ggx(NoL, NoV, roughness);
-    float denom = 4.0 * NoL * NoV + 0.0001;
-    return DFG / denom;
-}
-
 float pow2(float x) { 
     return x*x;
 }
 
-float GTR2(float NdotH, float a) {
-    float a2 = a*a;
-    float t = 1. + (a2-1.)*NdotH*NdotH;
-    return a2 / (PI * t*t);
-}
-
 float GTR2_aniso(float NdotH, float HdotX, float HdotY, float ax, float ay) {
     return 1. / (PI * ax*ay * pow2( pow2(HdotX/ax) + pow2(HdotY/ay) + NdotH*NdotH ));
-}
-
-float smithG_GGX(float NdotV, float alphaG) {
-    float a = alphaG*alphaG;
-    float b = NdotV*NdotV;
-    return 1. / (abs(NdotV) + max(sqrt(a + b - a*b), EPSILON));
 }
 
 float smithG_GGX_aniso(float NdotV, float VdotX, float VdotY, float ax, float ay) {
@@ -183,21 +117,6 @@ float pdfCos(float theta) {
     return cos(theta)/PI;
 }
 
-float pdfMicrofacet(const in vec3 wi, const in vec3 wo, const in vec3 normal, const in float roughness) {
-    if (!sameHemiSphere(wo, wi, normal)) return 0.;
-    vec3 wh = normalize(wo + wi);
-    
-    float NdotH = dot(normal, wh);
-    float alpha2 = roughness * roughness;
-    // alpha2 *= alpha2;
-    
-    float cos2Theta = NdotH * NdotH;
-    float denom = cos2Theta * ( alpha2 - 1.) + 1.;
-    if( denom == 0. ) return 0.;
-    float pdfDistribution = alpha2 * NdotH /(PI * denom * denom);
-    return pdfDistribution/(4. * dot(wo, wh));
-}
-
 float pdfMicrofacetAniso(const in vec3 wi, const in vec3 wo, const in vec3 X, const in vec3 Y, const vec3 normal, const float roughness) {
     if (!sameHemiSphere(wo, wi, normal)) return 0.;
     vec3 wh = normalize(wo + wi);
@@ -217,41 +136,6 @@ float pdfMicrofacetAniso(const in vec3 wi, const in vec3 wo, const in vec3 X, co
     if( denom == 0. ) return 0.;
     float pdfDistribution = NdotH /(PI * alphax * alphay * denom * denom);
     return pdfDistribution/(4. * dot(wo, wh));
-}
-
-vec3 disneyMicrofacetSample(out vec3 wi, const in vec3 wo, out float pdf, const in vec2 u, const in vec3 normal, const in float roughness) {
-    float cosTheta = 0., phi = (2. * PI) * u[1];
-    float alpha = roughness;
-    float tanTheta2 = alpha * u[0] / (1.0 - u[0]);
-    cosTheta = 1. / sqrt(1. + tanTheta2);
-    
-    float sinTheta = sqrt(max(EPSILON, 1. - cosTheta * cosTheta));
-    vec3 whLocal = sphericalDirection(sinTheta, cosTheta, sin(phi), cos(phi));
-     
-    vec3 tangent = vec3(0.), binormal = vec3(0.);
-    createBasis(normal, tangent, binormal);
-    
-    vec3 wh = whLocal.x * tangent + whLocal.y * binormal + whLocal.z * normal;
-    
-    if(!sameHemiSphere(wo, wh, normal)) {
-       wh *= -1.;
-    }
-            
-    wi = reflect(-wo, wh);
-    
-    float NdotL = dot(normal, wo);
-    float NdotV = dot(normal, wi);
-
-    if (NdotL < 0. || NdotV < 0.) {
-        pdf = 0.; // If not set to 0 here, create's artifacts. WHY EVEN IF SET OUTSIDE??
-        return vec3(0.);
-    }
-    
-    vec3 H = normalize(wo+wi);
-    float NdotH = dot(normal,H);
-    float LdotH = dot(wo,H);
-    
-    pdf = pdfMicrofacet(wi, wo, normal, roughness);
 }
 
 void disneyMicrofacetAnisoSample(out vec3 wi, const in vec3 wo, const in vec3 X, const in vec3 Y, const in vec2 u, const in vec3 normal, const in float roughness) {
@@ -295,20 +179,14 @@ vec3 disneyDiffuse(const in float NdotL, const in float NdotV, const in float Ld
 vec3 disneyMicrofacetAnisotropic(float NdotL, float NdotV, float NdotH, float LdotH,
                                  const in vec3 L, const in vec3 V,
                                  const in vec3 H, const in vec3 X, const in vec3 Y,
-                                 vec3 baseColor, float roughness, float metallic) {
+                                 vec3 baseColor, float specular, float roughness, float metallic) {
     
-    float Cdlum = .3*baseColor.r + .6*baseColor.g + .1*baseColor.b;
-
-    vec3 Ctint = Cdlum > 0. ? baseColor/Cdlum : vec3(1.);
-    vec3 Cspec0 = mix(vec3(0.01), baseColor, metallic);
+    vec3 Cspec0 = mix(1.0 *.08*vec3(1.0), baseColor, metallic);
     
     float aspect = sqrt(1.-0.0*.9);
     float ax = max(.001, pow2(roughness)/aspect);
     float ay = max(.001, pow2(roughness)*aspect);
     float Ds = GTR2_aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
-
-    // float a = max(.001, roughness);
-    // float Ds = GTR2(NdotH, a);
 
     float FH = schlickWeight(LdotH);
     vec3 Fs = mix(Cspec0, vec3(1), FH);
@@ -320,7 +198,7 @@ vec3 disneyMicrofacetAnisotropic(float NdotL, float NdotV, float NdotH, float Ld
 }
 
 // Evaluate combined diffuse and specular BRDF
-vec3 evalBRDF(vec3 n, vec3 v, vec3 l, vec3 albedo, float roughness, float metalness)
+vec3 evalBRDF(vec3 n, vec3 v, vec3 l, vec3 albedo, float specular, float roughness, float metalness)
 {
     // Common dot products
     float NoV = clamp(dot(n, v), 0.01, 0.99);
@@ -330,16 +208,6 @@ vec3 evalBRDF(vec3 n, vec3 v, vec3 l, vec3 albedo, float roughness, float metaln
     float VoH = clamp(dot(v, h), 0.01, 0.99);
     float LoH = clamp(dot(l, h), 0.01, 0.99);
 
-    // Use standard approximation of default fresnel
-    float n1 = 2;
-    float f0 = (1-n1)/(1+n1);
-    f0 *= f0;
-    vec3 f = mix(vec3(f0), albedo, metalness);
-    vec3 F = schlickFresnel(VoH, f);
-
-    // Diffuse amount
-    vec3 Kd = (1.0 - F) * (1.0 - metalness);
-    // return (Kd * disneyDiffuse(NoL, NoV, clamp(dot(l, h), 0.01, 0.99), albedo, roughness) + cookTorranceBRDF(NoL, NoV, NoH, VoH, F, roughness));
     vec3 diffuse = disneyDiffuse(NoL, NoV, clamp(dot(l, h), 0.01, 0.99), albedo, 0.1);
     diffuse = albedo/PI;
 
@@ -347,34 +215,9 @@ vec3 evalBRDF(vec3 n, vec3 v, vec3 l, vec3 albedo, float roughness, float metaln
     vec3 binormal = normalize(cross(n, tangent));
     tangent = normalize(cross(n,binormal));
 
-    return diffuse*(1-metalness) + disneyMicrofacetAnisotropic(NoL, NoV, NoH, LoH, l, v, h, tangent, binormal, albedo, roughness, metalness);
-    // return disneyMicrofacetAnisotropic(NoL, NoV, NoH, LoH, l, v, h, tangent, binormal, albedo, roughness, metalness);
-    // vec3 color = disneyMicrofacetAnisotropic(NoL, NoV, NoH, LoH, l, v, h, tangent, binormal, albedo, roughness, metalness);
-
-    // return color;
+    return diffuse*(1-metalness) + disneyMicrofacetAnisotropic(NoL, NoV, NoH, LoH, l, v, h, tangent, binormal, albedo, specular, roughness, metalness);
 }
 //=============================================================================
-
-float schlick(float cosine, float ior) {
-    float r0 = (1.-ior)/(1.+ior);
-    r0 = r0*r0;
-    return r0 + (1.-r0)*pow((1.-cosine),5.);
-}
-
-bool modified_refract(const in vec3 v, const in vec3 n, const in float ni_over_nt, 
-                      out vec3 refracted) {
-    // return false;
-    float dt = dot(v, n);
-    float discriminant = 1. - ni_over_nt*ni_over_nt*(1.-dt*dt);
-    if (discriminant > 0.) {
-        refracted = ni_over_nt*(v - n*dt) - n*sqrt(discriminant);
-        return true;
-    } else { 
-        return false;
-    }
-
-}
-
 float reflectance(float cosine, float ref_idx) {
     // Use Schlick's approximation for reflectance.
     float r0 = (1-ref_idx) / (1+ref_idx);
@@ -382,6 +225,26 @@ float reflectance(float cosine, float ref_idx) {
     return r0 + (1-r0)*pow((1 - cosine),5);
 }
 
+bool sampleLight(vec3 hitP, vec3 normal, inout float pdf, inout vec3 to_light){
+    vec3 on_light = vec3(rand2D()*1.5-0.75, rand2D()*1.5-1.5, 3.4);
+    to_light = on_light - hitP;
+    float distance_squared = length(to_light)*length(to_light);
+    to_light = normalize(to_light);
+
+    if (dot(to_light, normal) < 0)
+        return false;
+
+    float light_area = 1.5*1.5;
+    float light_cosine = abs(to_light.y);
+    if (light_cosine < 0.000001)
+        return false;
+
+    pdf = distance_squared / (light_cosine * light_area);
+    return true;
+}
+
+// bool flag1 = true;
+// int count = 2;
 vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bool refracted) {
     // float seed = rand2D()+rand;
     refracted = false;
@@ -395,23 +258,25 @@ vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bo
     switch (o.material) {
         case 2:
 
-            if (rand2D() > 0.5) {
-                r.d = random_cos_weighted_hemisphere_direction(normal);
-                // pdf = pdfCos(dot(r.d, normal));
+            if (rand2D() > 0.5 && sampleLight(hitP, normal, pdf, r.d)) {
             }else{
-                disneyMicrofacetAnisoSample(r.d, -l, tangent, binormal, vec2(rand2D(), rand2D()), normal, o.roughness);
-                // pdf = pdfMicrofacetAniso(r.d, -l, tangent, binormal, normal, 0.1);
-                // if (dot(r.d, normal) < 0) return vec4(0.0,0.0,0.0,1.0);
+                if (rand2D() > 0.5) {
+                    r.d = random_cos_weighted_hemisphere_direction(normal);
+                }else{
+                    disneyMicrofacetAnisoSample(r.d, -l, tangent, binormal, vec2(rand2D(), rand2D()), normal, o.roughness);
+                }
+                pdf = 0.5 * pdfCos(dot(r.d, normal)) + 0.5 * pdfMicrofacetAniso(r.d, -l, tangent, binormal, normal, o.roughness);
             }
-            pdf = 0.5 * pdfCos(dot(r.d, normal)) + 0.5 * pdfMicrofacetAniso(r.d, -l, tangent, binormal, normal, o.roughness);
-            // pdf = pdfMicrofacetAniso(r.d, -l, tangent, binormal, normal, 0.1);
-            // pdf = pdfCos(dot(r.d, normal));
+
+            pdf*=0.5;
 
             if( pdf < EPSILON ) return vec4(0.0,0.0,0.0,1.0);
             if (dot(r.d, normal) < 0) return vec4(0.0,0.0,0.0,1.0);
 
-            return vec4(evalBRDF(normal, -l, r.d, o.albedo.rgb, o.roughness, o.metalness)/pdf, 1.0);
+            return vec4(evalBRDF(normal, -l, r.d, o.albedo.rgb, o.specular, o.roughness, o.metalness)/pdf, 1.0);
             break;
+
+
         case 1:
             r.d = random_cos_weighted_hemisphere_direction(normal);
             pdf = pdfCos(dot(r.d, normal));
@@ -443,17 +308,26 @@ vec4 brdf(vec3 hitD, vec3 hitP, inout vec3 normal, inout Ray r, Object o, out bo
             bool cannot_refract = refraction_ratio * sin_theta > 1.0;
             vec3 direction;
 
-            // if (cannot_refract || reflectance(cos_theta, refraction_ratio) > rand2D()) {
-            if (cannot_refract) {
+            if (cannot_refract || reflectance(cos_theta, refraction_ratio) > rand2D()) {
+            // if (cannot_refract) {
                 direction = reflect(unit_direction, refract_normal);
-                if (dot(r.d, normal) < 0) normal = -normal;
-            }else
+                if (dot(direction, normal) < 0) normal = -normal;
+            }else{
                 direction = refract(unit_direction, refract_normal, refraction_ratio);
                 refracted = true;
+            }
+            
+            // if (!flag1 && count > 0) {
+            //     direction = reflect(unit_direction, refract_normal);
+            //     if (dot(direction, normal) < 0) normal = -normal;
+            //     count -= 1;
+            // }else{
+            //     direction = refract(unit_direction, refract_normal, refraction_ratio);
+            //     refracted = true;
+            //     flag1 = false;
+            // }
 
             r.d = normalize(direction);
-
-            // return vec4(1.0)/dot(r.d, normal);
             return vec4(1.0);
             break;
     }
@@ -471,7 +345,7 @@ bool intersectSphere(Ray r, float radius, vec3 pos, out float tNear, out float t
         tNear = (-b - sqrt(discriminant))/2/a;
         tFar = (-b + sqrt(discriminant))/2/a;
 
-
+        //abandon too close intersection
         if (abs(tNear) < EPSILON) {
             tNear = tFar;
             vec3 hitPos = r.o + r.d*tFar;
@@ -504,7 +378,7 @@ bool intersectRect(Ray r, vec3 p, vec3 s1, vec3 s2 , out float tNear, out float 
         tNear = dot((p-r.o), normal)/dot(r.d, normal);
         if (tNear>0) {
             vec3 hitPos = r.o + tNear*r.d;
-            if (dot((hitPos-p), s1) >=0 && dot((hitPos-p), s1) <= length(s1)*length(s1) && dot((hitPos-p), s2) >=0 && dot((hitPos-p), s2) <= length(s2)*length(s1)) {
+            if (dot((hitPos-p), s1) >=0 && dot((hitPos-p), s1) <= length(s1)*length(s1) && dot((hitPos-p), s2) >=0 && dot((hitPos-p), s2) <= length(s2)*length(s2)) {
                 return true;
             };
 
@@ -546,7 +420,7 @@ vec3 zeroone (vec3 v) {
     return a/max3(a);
 }
 
-void rayColor(Ray ray, out vec4 fragColor0, out vec4 fragColor1, out vec4 fragColor2) {
+void rayColor(Ray ray, out vec4 fragColor0, out uint fragColor1, out vec4 fragColor2) {
 
     bool hit = true;
     int bounce = 0;
@@ -576,11 +450,11 @@ void rayColor(Ray ray, out vec4 fragColor0, out vec4 fragColor1, out vec4 fragCo
                     hitO = o;
 
                     debugColor = vec4(ray.o, 1.0);
-                    fragColor1 = vec4(hitO.emitting);
+                    // fragColor1 = vec4(hitO.emitting);
                     fragColor2 = vec4(ray.d, tNear);
 
                     if (bounce==0){
-                        // fragColor1 = o.id;
+                        fragColor1 = o.id;
                         // fragColor2 = vec4(normal/2+0.5, 1.0);
                     }
                 }
@@ -595,6 +469,12 @@ void rayColor(Ray ray, out vec4 fragColor0, out vec4 fragColor1, out vec4 fragCo
                 emit = hitO.albedo;
             }else{
                 hitPos = ray.o + ray.d*tNear;
+
+                // if (sampleLight(hitP, normal, pdf, r.d)){
+                //     return vec4(evalBRDF(normal, -l, r.d, o.albedo.rgb, o.specular, o.roughness, o.metalness)/pdf, 1.0);
+                // }else{
+                //     return vec4(1.0);
+                // }
 
                 bool refracted;
                 vec4 color = brdf(ray.d, hitPos, normal, ray, hitO, refracted);
@@ -627,17 +507,11 @@ void main() {
 
     rayColor(ray, fragColor0, fragColor1, fragColor2);
 
-    // fragColor0 /= max3(fragColor0.rgb);
-
-    // fragColor0.rgb = random_in_unit_sphere();
+    float gamma = 2.2;
     if (frameNumber >= 2) {
-        fragColor0 = vec4( texture(fboTexColor, texCoords).rgb*(frameNumber-1)/frameNumber + fragColor0.rgb/frameNumber, 1.0);
-        // fragColor0 = texture(fboTexColor, texCoords);
+        vec3 lastColor = texture(fboTexColor, texCoords).rgb;
+        lastColor = pow(lastColor, vec3(gamma));
+        fragColor0 = vec4( lastColor*(frameNumber-1)/frameNumber + fragColor0.rgb/frameNumber, 1.0);
+        fragColor0.rgb = pow(fragColor0.rgb, vec3(1.0/gamma));
     }
-
-    // int seedi = int(round((texCoords.x+texCoords.y*1000)*10000 + rand));
-    // fragColor0 = vec4( rand2D(), rand2D(), rand2D(), 1.0);
-    
-    // fragColor2 = vec4(ray.d, 1.0);
-
 }

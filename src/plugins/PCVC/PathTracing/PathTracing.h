@@ -19,6 +19,7 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         uint id;
         bool emitting;
         int material;
+        float specular;
         float roughness;
         float metalness;
         alignas(16) glm::vec3 pos;
@@ -27,18 +28,43 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         alignas(16) glm::vec3 s1;
         alignas(16) glm::vec3 s2;
 
-        static Object Sphere(uint id, glm::vec3 pos, glm::vec4 albedo, int material, float roughness, float metalness, float radius) {
-            Object o = {0, id, false, material, roughness, metalness, pos, albedo, radius};
+        static Object Sphere(uint id, glm::vec3 pos, glm::vec4 albedo, int material, float specular, float roughness, float metalness, float radius) {
+            Object o = {0, id, false, material, specular, roughness, metalness, pos, albedo, radius};
             return o;
         }
 
-        static Object Rect(uint id, glm::vec3 pos, glm::vec4 albedo, int material, float roughness, float metalness, glm::vec3 s1, glm::vec3 s2) {
-            Object o = {1, id, false, material, roughness, metalness, pos, albedo, 0.0f, s1, s2};
+        static Object Rect(uint id, glm::vec3 pos, glm::vec4 albedo, int material, float specular, float roughness, float metalness, glm::vec3 s1, glm::vec3 s2) {
+            Object o = {1, id, false, material, specular, roughness, metalness, pos, albedo, 0.0f, s1, s2};
             return o;
+        }
+
+        static void Cube(uint id, glm::vec3 pos0, glm::vec4 albedo, int material, float specular, float roughness, float metalness, glm::vec3 s1, glm::vec3 s2, glm::vec3 s3, std::vector<Object>& l) {
+            //floor
+            glm::vec3 pos = pos0;
+            Object o = Object::Rect(id, pos, albedo, material, specular, roughness, metalness, s1, s2);
+            l.push_back(o);
+            //left wall
+            o = Object::Rect(id, pos, albedo, material, specular, roughness, metalness, s3, s1);
+            l.push_back(o);
+            //front wall
+            o = Object::Rect(id, pos, albedo, material, specular, roughness, metalness, s3, s2);
+            l.push_back(o);
+            //ceiling
+            pos = pos0+s3;
+            o = Object::Rect(id, pos, albedo, material, specular, roughness, metalness, s1, s2);
+            l.push_back(o);
+            //back wall
+            pos = pos0+s1;
+            o = Object::Rect(id, pos, albedo, material, specular, roughness, metalness, s3, s2);
+            l.push_back(o);
+            //right wall
+            pos = pos0+s2;
+            o = Object::Rect(id, pos, albedo, material, specular, roughness, metalness, s3, s1);
+            l.push_back(o);
         }
 
         static Object LighSourceRect(uint id, glm::vec3 pos, glm::vec4 albedo, float roughness, float metalness, glm::vec3 s1, glm::vec3 s2) {
-            Object o = {1, id, true, 2, roughness, metalness, pos, albedo, 0.0f, s1, s2};
+            Object o = {1, id, true, 2, 1.0, roughness, metalness, pos, albedo, 0.0f, s1, s2};
             return o;
         }
 
@@ -84,10 +110,6 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
 
         void drawToFBO();
 
-        void drawToLightFBO();
-
-        void setLightViewMatrix(float, float, float);
-
         // Window state
         int wWidth;              //!< width of the window
         int wHeight;             //!< height of the window
@@ -102,10 +124,8 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         std::shared_ptr<Core::OrbitCamera> camera; //!< Camera's view matrix
 
         // GL objects
-        std::unique_ptr<glowl::GLSLProgram> shaderBox;  //!< shader for box
         std::unique_ptr<glowl::GLSLProgram> shaderQuad; //!< shader for quad
         std::unique_ptr<glowl::GLSLProgram> shaderPathTracer; //!< shader for path tracer
-        std::unique_ptr<glowl::Mesh> vaBox;             //!< box vertices
         std::unique_ptr<glowl::Mesh> vaQuad;            //!< quad vertices
 
         GLuint fbo;           //!< handle for FBO
@@ -116,32 +136,18 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
 
         GLuint ObjectBuffer;
         std::vector<Object> objectList;
-        
-
-        std::shared_ptr<glowl::Texture2D> texEarth; //!< earth texture
-        std::shared_ptr<glowl::Texture2D> texDice;  //!< dice texture
-        std::shared_ptr<glowl::Texture2D> texBoard; //!< board texture
 
         // object state
         int pickedObjNum; //!< currently picked object, "< 0" = no object picked
-
-        // light view (bonus task only)
-        float lightZnear;      //!< near clipping plane of spot light
-        float lightZfar;       //!< far clipping plane of spot light
-        glm::mat4 lightProjMx; //!< spot light's projection matrix
-        glm::mat4 lightViewMx; //!< spot light's view matrix
         glm::mat4 oldViewMx;
-
-        // light fbo (bonus task only)
-        int lightFboWidth;       //!< width of FBO
-        int lightFboHeight;      //!< height of FBO
-        GLuint lightFbo;         //!< handle for FBO
-        GLuint lightFboTexColor; //!< handle for color attachment
-        GLuint lightFboTexDepth; //!< handle for depth buffer attachment
 
         // GUI variables
         int newObjectType;
         float currentObjectRadius;
+        float currentObjectSepcular;
+        float currentObjectRoughness;
+        float currentObjectMetalness;
+
         glm::vec3 currentObjectColor; //!< current object color
         glm::vec3 backgroundColor; //!< background color
         bool showDebug;
@@ -149,10 +155,6 @@ namespace OGL4Core2::Plugins::PCVC::PathTracing {
         float fovY;                //!< Camera's vertical field of view
         float zNear;               //!< near clipping plane
         float zFar;                //!< far clipping plane
-        float lightLong;           //!< position of light, longitude in degree
-        float lightLat;            //!< position of light, latitude in degree
-        float lightDist;           //!< position of light, distance from origin
-        float lightFoV;            //!< field of view of spot light (bonus task only)
     };
 
 } // namespace OGL4Core2::Plugins::PCVC::PathTracing
